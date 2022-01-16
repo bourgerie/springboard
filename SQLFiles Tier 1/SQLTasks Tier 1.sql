@@ -59,7 +59,11 @@ WHERE facid IN (1, 5)
 'cheap' or 'expensive', depending on if their monthly maintenance cost is
 more than $100. Return the name and monthly maintenance of the facilities
 in question. */
-
+SELECT facid, F.monthlymaintenance, 
+	(CASE WHEN F.monthlymaintenance >= 100 THEN 'expensive'
+	WHEN F.monthlymaintenance < 100 THEN 'cheap'
+	END) AS cost
+FROM Facilities as F
 
 /* Q6: You'd like to get the first and last name of the last member(s)
 who signed up. Try not to use the LIMIT clause for your solution. */
@@ -96,13 +100,25 @@ WHERE starttime LIKE '2012-09-14%' AND
 		(members.memid > 0 AND membercost > 30)
 	
 /* Q9: This time, produce the same result as in Q8, but using a subquery. */
-SELECT name, CONCAT (firstname, " ", surname) as fullname, membercost, guestcost
-	FROM Bookings
-	INNER JOIN Facilities ON Bookings.facid = Facilities.facid
-	INNER JOIN Members ON Bookings.memid = Members.memid
-WHERE starttime LIKE '2012-09-14%' AND membercost > 30 OR
-		(SELECT * FROM Bookings INNER JOIN Facilities ON Bookings.facid = Facilities.facid
-	INNER JOIN Members ON Bookings.memid = Members.memid where Members.memid = 0 and guestcost >30 )
+SELECT
+firstname || ' ' || surname AS member,
+name AS facility,
+cost
+FROM
+(SELECT
+firstname,
+surname,
+name,
+CASE WHEN firstname = 'GUEST' THEN guestcost * slots ELSE membercost * slots END AS cost,
+starttime
+FROM Members
+INNER JOIN Bookings
+ON Members.memid = Bookings.memid
+INNER JOIN Facilities
+ON Bookings.facid = Facilities.facid) AS inner_table
+WHERE starttime >= '2012-09-14' AND starttime < '2012-09-15'
+AND cost > 30
+ORDER BY cost DESC;
 ~~~~~~~
 /* PART 2: SQLite
 /* We now want you to jump over to a local instance of the database on your machine. 
@@ -123,12 +139,57 @@ QUESTIONS:
 /* Q10: Produce a list of facilities with a total revenue less than 1000.
 The output of facility name and total revenue, sorted by revenue. Remember
 that there's a different cost for guests and members! */
+WITH table1 as (
+
+SELECT 
+f.facid,
+SUM(CASE WHEN memid > 0 THEN membercost*slots
+	ELSE guestcost*slots END) as revenue
+
+
+FROM Facilities as f
+inner join Bookings as b 
+ON f.facid = b.facid
+
+
+GROUP BY f.facid
+
+SELECT facid, revenue FROM table1
+WHERE revenue < 1000
 
 /* Q11: Produce a report of members and who recommended them in alphabetic surname,firstname order */
 
+SELECT CONCAT (a.surname, " ", a.firstname) as member,
+CONCAT (b.surname, " ", b.firstname) as recommender
+FROM Members a
+INNER JOIN Members b on a.memid = b.recommendedby
+
+
 
 /* Q12: Find the facilities with their usage by member, but not guests */
+SELECT 
+f.facid, memid,
+SUM(membercost*slots) as revenue
+
+
+FROM Facilities as f
+inner join Bookings as b 
+ON f.facid = b.facid
+
+WHERE memid > 0
+GROUP BY memid
 
 
 /* Q13: Find the facilities usage by month, but not guests */
 
+SELECT 
+f.facid, starttime,
+SUM(membercost*slots) as revenue
+
+
+FROM Facilities as f
+inner join Bookings as b 
+ON f.facid = b.facid
+
+WHERE memid > 0
+GROUP BY starttime
